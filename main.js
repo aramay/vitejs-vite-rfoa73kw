@@ -2,6 +2,7 @@ import './style.css';
 import { WebContainer } from '@webcontainer/api';
 import { files } from './files';
 import { Terminal } from '@xterm/xterm';
+import "@xterm/xterm/css/xterm.css";
 
 // console.log(FileList);
 document.querySelector('#app').innerHTML = `
@@ -32,7 +33,7 @@ const terminalEl = document.querySelector('.terminal');
 
 let webcontainerInstance;
 
-async function installDependencies() {
+async function installDependencies(terminal) {
   // Install dependencies
   console.log(`Starting install dependencies \n`);
   const installProcess = await webcontainerInstance.spawn('npm', ['install']);
@@ -40,7 +41,7 @@ async function installDependencies() {
   installProcess.output.pipeTo(
     new WritableStream({
       write(data) {
-        console.log(data);
+        terminal.write(data)
       },
     })
   );
@@ -51,10 +52,18 @@ async function installDependencies() {
   return exitCode;
 }
 
-async function startDevServer() {
+async function startDevServer(terminal) {
   console.log('Starting dev server \n');
   // Run 'npm run start' to start the express app
-  await webcontainerInstance.spawn('npm', ['run', 'start']);
+  const serverProcess = await webcontainerInstance.spawn('npm', ['run', 'start']);
+
+  serverProcess.output.pipeTo(
+    new WritableStream({
+      write(data) {
+        terminal.write(data)
+      }
+    })
+  )
 
   // wait for server ready event
   webcontainerInstance.on('server-ready', (port, url) => {
@@ -88,13 +97,13 @@ window.addEventListener('load', async () => {
   await webcontainerInstance.mount(files);
 
   // install dependencies
-  const installExitCode = await installDependencies();
+  const installExitCode = await installDependencies(terminal);
 
   if (installExitCode !== 0) {
     throw new Error('installation failed');
   }
   console.log(iframeEl.src);
-  startDevServer();
+  startDevServer(terminal);
   // confirm files are loaded
   // const packageJSON = await webcontainerInstance.fs.readFile(
   //   'package.json',
