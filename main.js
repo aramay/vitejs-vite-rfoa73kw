@@ -31,8 +31,28 @@ const textareaEl = document.querySelector('textarea');
 /** @type { HTMLTextAreaElement | null } */
 const terminalEl = document.querySelector('.terminal');
 
+/** @param { Terminal } terminal */
+async function startShell(terminal) {
+  const shellProcess = await webcontainerInstance.spawn("jsh");
+
+  shellProcess.output.pipeTo(
+    new WritableStream({
+      write(data) {
+        terminal.write(data)
+      }
+    })
+  )
+
+  const input = shellProcess.input.getWriter();
+  terminal.onData((data) => {
+    input.write(data)
+  })
+  return shellProcess;
+}
+
 let webcontainerInstance;
 
+/*
 async function installDependencies(terminal) {
   // Install dependencies
   console.log(`Starting install dependencies \n`);
@@ -50,8 +70,9 @@ async function installDependencies(terminal) {
   console.log('installProcess', installProcess);
   const exitCode = await installProcess.exit;
   return exitCode;
-}
+}*/
 
+/*
 async function startDevServer(terminal) {
   console.log('Starting dev server \n');
   // Run 'npm run start' to start the express app
@@ -70,13 +91,41 @@ async function startDevServer(terminal) {
     console.log(`Server is ready on port ${port} ${url}`);
     return (iframeEl.src = url);
   });
-}
+}*/
 
 async function writeIndexJS(content) {
   console.log('writeIndex file function called \n');
   await webcontainerInstance.fs.writeFile('/index.js', content);
 }
 
+window.addEventListener('load', async () => {
+  textareaEl.value = files['index.js'].file.contents;
+  // listen for input events in textarea
+  textareaEl.addEventListener('input', (e) => {
+    writeIndexJS(e.target.value);
+  });
+
+  // attach Terminal to terminalEl
+  const terminal = new Terminal({
+    convertEol: true,
+  });
+  terminal.open(terminalEl);
+  //Call only once
+  webcontainerInstance = await WebContainer.boot();
+  console.log('webcontainer', webcontainerInstance);
+
+  // mount files
+  await webcontainerInstance.mount(files);
+
+  // Wait for "server-ready" event
+  webcontainerInstance.on("server-ready", (PORT, url) => {
+    iframeEl.src = url;
+  })
+
+  // start shell
+  startShell(terminal)
+});
+/*
 window.addEventListener('load', async () => {
   textareaEl.value = files['index.js'].file.contents;
   // listen for input events in textarea
@@ -111,4 +160,4 @@ window.addEventListener('load', async () => {
   // );
 
   // console.log(packageJSON);
-});
+});*/
