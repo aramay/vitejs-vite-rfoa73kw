@@ -3,6 +3,7 @@ import { WebContainer } from '@webcontainer/api';
 import { files } from './files';
 import { Terminal } from '@xterm/xterm';
 import "@xterm/xterm/css/xterm.css";
+import { FitAddon } from "@xterm/addon-fit";
 
 // console.log(FileList);
 document.querySelector('#app').innerHTML = `
@@ -33,7 +34,12 @@ const terminalEl = document.querySelector('.terminal');
 
 /** @param { Terminal } terminal */
 async function startShell(terminal) {
-  const shellProcess = await webcontainerInstance.spawn("jsh");
+  const shellProcess = await webcontainerInstance.spawn("jsh", {
+    terminal: {
+      cols: terminal.cols,
+      rows: terminal.rows
+    }
+  });
 
   shellProcess.output.pipeTo(
     new WritableStream({
@@ -105,11 +111,16 @@ window.addEventListener('load', async () => {
     writeIndexJS(e.target.value);
   });
 
+  const fitAddon = new FitAddon();
+
   // attach Terminal to terminalEl
   const terminal = new Terminal({
     convertEol: true,
   });
+  terminal.loadAddon(fitAddon)
   terminal.open(terminalEl);
+
+  fitAddon.fit();
   //Call only once
   webcontainerInstance = await WebContainer.boot();
   console.log('webcontainer', webcontainerInstance);
@@ -123,7 +134,15 @@ window.addEventListener('load', async () => {
   })
 
   // start shell
-  startShell(terminal)
+  const shellProcess = await startShell(terminal)
+
+  window.addEventListener("resize", () => {
+    fitAddon.fit();
+    shellProcess.resize({
+      cols: terminal.cols,
+      rows: terminal.rows
+    })
+  })
 });
 /*
 window.addEventListener('load', async () => {
